@@ -109,6 +109,10 @@
           };
 
           packages = {
+            n8n-nodes-github-notifications = mkN8nNode {
+              pname = "n8n-nodes-github-notifications";
+              description = "n8n node to list GitHub notifications";
+            };
             n8n-nodes-imap = mkN8nNode {
               pname = "n8n-nodes-imap";
               description = "n8n node to interact with IMAP mailboxes and create email drafts";
