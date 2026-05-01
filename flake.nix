@@ -1,5 +1,5 @@
 {
-  description = "n8n workflows";
+  description = "n8n custom nodes";
 
   inputs = {
     # keep-sorted start
@@ -11,23 +11,64 @@
     # keep-sorted end
   };
 
-  outputs = inputs @ {flake-parts, ...}:
-    flake-parts.lib.mkFlake {inherit inputs;} {
+  outputs =
+    inputs@{
+      flake-parts,
+      treefmt-nix,
+      ...
+    }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [
+        treefmt-nix.flakeModule
+      ];
+
       systems = [
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"
       ];
-      imports = [
-        ./nix/formatter.nix
-        ./nix/shell.nix
-      ];
 
-      perSystem = {system, ...}: {
-        _module.args.pkgs = import inputs.nixpkgs {
-          inherit system;
-          config.allowUnfree = true;
+      perSystem =
+        {
+          pkgs,
+          config,
+          system,
+          ...
+        }:
+        {
+          _module.args.pkgs = import inputs.nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+          };
+
+          devShells.default = pkgs.mkShell {
+            packages = with pkgs; [
+              nodejs
+            ];
+
+            shellHook = ''
+              echo "n8n custom nodes development environment"
+            '';
+          };
+
+          treefmt = {
+            projectRootFile = "flake.nix";
+            programs = {
+              deadnix.enable = true;
+              keep-sorted.enable = true;
+              nixfmt.enable = true;
+              prettier.enable = true;
+              statix.enable = true;
+            };
+            settings.formatter.prettier.excludes = [
+              "flake.lock"
+              "package-lock.json"
+            ];
+          };
+
+          checks = {
+            devShell = config.devShells.default;
+          };
         };
-      };
     };
 }

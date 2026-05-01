@@ -1,0 +1,38 @@
+{
+  "name": "n8n-nodes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "n8n custom nodes",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "jest --passWithNoTests",
+    "format": "prettier . --write",
+    "lint": "eslint \"packages/**/*.ts\" \"test/**/*.ts\" --no-error-on-unmatched-pattern",
+    "lintfix": "eslint \"packages/**/*.ts\" \"test/**/*.ts\" --fix --no-error-on-unmatched-pattern",
+    "typecheck": "tsc --noEmit"
+  },
+  "overrides": {
+    "@n8n/errors": "0.8.0",
+    "@n8n/expression-runtime": "0.11.0",
+    "@n8n/tournament": "1.0.7",
+    "js-base64": "3.7.8",
+    "lodash": "4.18.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.9.1",
+    "eslint": "^9.38.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.2.0",
+    "n8n-workflow": "2.12.0",
+    "prettier": "^3.6.2",
+    "ts-jest": "^29.4.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.2"
+  }
+}
