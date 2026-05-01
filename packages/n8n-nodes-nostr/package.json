@@ -1,0 +1,45 @@
+{
+  "name": "n8n-nodes-nostr",
+  "version": "1.0.0",
+  "description": "n8n node to send encrypted DMs via Nostr using NIP-59 Gift Wrap",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "nostr",
+    "nip-59",
+    "gift-wrap",
+    "encrypted-dm"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "Jörg Thalheim",
+    "email": "joerg@thalheim.io"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && find nodes -name '*.svg' -o -name '*.node.json' | while read f; do cp \"$f\" \"dist/$f\"; done",
+    "dev": "tsc --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/NostrApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Nostr/Nostr.node.js"
+    ]
+  },
+  "dependencies": {
+    "nostr-tools": "^2.23.3",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.12"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}
