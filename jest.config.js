@@ -2,7 +2,11 @@ module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
   testMatch: ["<rootDir>/packages/**/*.test.ts", "<rootDir>/test/**/*.test.ts"],
-  testPathIgnorePatterns: ["/node_modules/", "/dist/"],
+  testPathIgnorePatterns: [
+    "/node_modules/",
+    "/dist/",
+    "/packages/n8n-nodes-caldav/",
+  ],
   collectCoverageFrom: ["packages/**/*.ts", "test/**/*.ts"],
   coveragePathIgnorePatterns: ["/node_modules/", "/dist/", "/test/helpers.ts"],
   transform: {

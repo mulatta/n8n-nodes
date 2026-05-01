@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "test": "jest --passWithNoTests",
+    "test": "jest --passWithNoTests && jest --config packages/n8n-nodes-caldav/jest.config.js",
     "format": "prettier . --write",
     "lint": "eslint \"packages/**/*.ts\" \"test/**/*.ts\" --no-error-on-unmatched-pattern",
     "lintfix": "eslint \"packages/**/*.ts\" \"test/**/*.ts\" --fix --no-error-on-unmatched-pattern",

@@ -42,7 +42,12 @@
           };
 
           mkN8nNode =
-            { pname, description }:
+            {
+              pname,
+              description,
+              nativeCheckInputs ? [ ],
+              jestArgs ? "--testPathPatterns='packages/${pname}/'",
+            }:
             pkgs.buildNpmPackage {
               inherit pname;
               version = "1.0.0";
@@ -60,7 +65,7 @@
                 ];
               };
 
-              inherit npmDeps;
+              inherit npmDeps nativeCheckInputs;
               inherit (pkgs.importNpmLock) npmConfigHook;
 
               makeCacheWritable = true;
@@ -78,7 +83,7 @@
               doCheck = true;
               checkPhase = ''
                 runHook preCheck
-                npx jest --testPathPatterns='packages/${pname}/'
+                npx jest ${jestArgs}
                 runHook postCheck
               '';
 
@@ -109,6 +114,15 @@
           };
 
           packages = {
+            n8n-nodes-caldav = mkN8nNode {
+              pname = "n8n-nodes-caldav";
+              description = "n8n node for CalDAV integration";
+              jestArgs = "--config packages/n8n-nodes-caldav/jest.config.js";
+              nativeCheckInputs = [
+                pkgs.apacheHttpd
+                pkgs.radicale
+              ];
+            };
             n8n-nodes-github-notifications = mkN8nNode {
               pname = "n8n-nodes-github-notifications";
               description = "n8n node to list GitHub notifications";
@@ -129,7 +143,9 @@
 
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [
+              apacheHttpd
               nodejs
+              radicale
             ];
 
             shellHook = ''
