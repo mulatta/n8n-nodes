@@ -117,6 +117,10 @@
               pname = "n8n-nodes-imap";
               description = "n8n node to interact with IMAP mailboxes and create email drafts";
             };
+            n8n-nodes-nostr = mkN8nNode {
+              pname = "n8n-nodes-nostr";
+              description = "n8n node to send encrypted DMs via Nostr using NIP-59 Gift Wrap";
+            };
             n8n-nodes-opencrow = mkN8nNode {
               pname = "n8n-nodes-opencrow";
               description = "n8n node to send trigger messages to OpenCrow";
