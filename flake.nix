@@ -31,14 +31,88 @@
       perSystem =
         {
           pkgs,
+          lib,
           config,
           system,
           ...
         }:
+        let
+          npmDeps = pkgs.importNpmLock {
+            npmRoot = ./.;
+          };
+
+          mkN8nNode =
+            { pname, description }:
+            pkgs.buildNpmPackage {
+              inherit pname;
+              version = "1.0.0";
+
+              src = lib.fileset.toSource {
+                root = ./.;
+                fileset = lib.fileset.unions [
+                  ./tsconfig.base.json
+                  ./tsconfig.json
+                  ./jest.config.js
+                  ./test
+                  ./package.json
+                  ./package-lock.json
+                  (./. + "/packages/${pname}")
+                ];
+              };
+
+              inherit npmDeps;
+              inherit (pkgs.importNpmLock) npmConfigHook;
+
+              makeCacheWritable = true;
+              npmFlags = [
+                "--ignore-scripts"
+                "--legacy-peer-deps"
+              ];
+
+              buildPhase = ''
+                runHook preBuild
+                npm run build --workspace=packages/${pname}
+                runHook postBuild
+              '';
+
+              doCheck = true;
+              checkPhase = ''
+                runHook preCheck
+                npx jest --testPathPatterns='packages/${pname}/'
+                runHook postCheck
+              '';
+
+              installPhase = ''
+                runHook preInstall
+
+                npm prune --omit=dev --legacy-peer-deps
+
+                mkdir -p $out/lib/node_modules/${pname}
+                cp -r packages/${pname}/dist packages/${pname}/package.json node_modules $out/lib/node_modules/${pname}/
+
+                find $out/lib/node_modules/${pname}/node_modules \
+                  -maxdepth 1 -type l -xtype l -delete
+
+                runHook postInstall
+              '';
+
+              meta = {
+                inherit description;
+                license = lib.licenses.mit;
+              };
+            };
+        in
         {
           _module.args.pkgs = import inputs.nixpkgs {
             inherit system;
             config.allowUnfree = true;
+          };
+
+          packages = {
+            n8n-nodes-imap = mkN8nNode {
+              pname = "n8n-nodes-imap";
+              description = "n8n node to interact with IMAP mailboxes and create email drafts";
+            };
           };
 
           devShells.default = pkgs.mkShell {
@@ -66,7 +140,7 @@
             ];
           };
 
-          checks = {
+          checks = config.packages // {
             devShell = config.devShells.default;
           };
         };
