@@ -1,0 +1,33 @@
+{
+  "name": "n8n-nodes-jmap",
+  "version": "1.0.0",
+  "description": "n8n node to interact with JMAP mailboxes and email objects",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "jmap",
+    "email",
+    "mailbox",
+    "drafts"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc && find nodes -name '*.svg' -o -name '*.node.json' | while read f; do cp \"$f\" \"dist/$f\"; done",
+    "dev": "tsc --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/JmapApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Jmap/Jmap.node.js"
+    ]
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}
