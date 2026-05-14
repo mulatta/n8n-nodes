@@ -143,6 +143,7 @@
               pname = "n8n-nodes-nostr";
               description = "n8n node to send encrypted DMs via Nostr using NIP-59 Gift Wrap";
             };
+            n8n-nodes-paperless = pkgs.callPackage ./packages/n8n-nodes-paperless { };
             n8n-nodes-vikunja = pkgs.callPackage ./packages/n8n-nodes-vikunja { };
             n8n-nodes-opencrow = mkN8nNode {
               pname = "n8n-nodes-opencrow";
