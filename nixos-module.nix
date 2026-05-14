@@ -52,7 +52,7 @@ in
       '';
       example = lib.literalExpression ''
         {
-          n8n-nodes-paperless = "''${pkgs.n8n-nodes-paperless}/lib/node_modules/@n8n-chezmoi-sh/n8n-nodes-paperless/dist";
+          n8n-nodes-paperless = "''${pkgs.n8n-nodes-paperless}/lib/node_modules/n8n-nodes-paperless/dist";
         }
       '';
     };
