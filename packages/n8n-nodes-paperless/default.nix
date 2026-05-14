@@ -40,8 +40,8 @@ stdenv.mkDerivation (finalAttrs: {
 
   installPhase = ''
     runHook preInstall
-    mkdir -p $out/lib/node_modules/@n8n-chezmoi-sh/n8n-nodes-paperless
-    cp -r dist package.json node_modules $out/lib/node_modules/@n8n-chezmoi-sh/n8n-nodes-paperless/
+    mkdir -p $out/lib/node_modules/${finalAttrs.pname}
+    cp -r dist package.json node_modules $out/lib/node_modules/${finalAttrs.pname}/
     runHook postInstall
   '';
 
