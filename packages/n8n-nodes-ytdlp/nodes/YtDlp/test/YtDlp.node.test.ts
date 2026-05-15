@@ -155,6 +155,65 @@ console.log(output);
     );
   });
 
+  it("validates cookie text and removes temporary files", async () => {
+    const cookieText = [
+      "# Netscape HTTP Cookie File",
+      ".x.com\tTRUE\t/\tTRUE\t1893456000\tauth_token\tsecret-auth",
+      ".x.com\tTRUE\t/\tTRUE\t1893456000\tct0\tsecret-ct0",
+      "",
+    ].join("\n");
+    const node = new YtDlp();
+    const ctx = createMockExecuteFunctions({
+      operation: "getInfo",
+      url: "https://x.com/example/status/1234567890",
+      ytdlpPath: fakeYtDlp,
+      authentication: "cookieText",
+      cookieText,
+      requiredCookieDomains: "x.com\ntwitter.com",
+      requiredCookieNames: "auth_token\nct0",
+      outputMode: "filePath",
+      outputDirectory: tmpDir,
+      outputTemplate: "%(id)s.%(ext)s",
+      format: "best",
+      downloadArchive: "",
+      extraArguments: "",
+      timeoutSeconds: 30,
+    });
+    process.env.CALLS_FILE = callsFile;
+
+    await node.execute.call(ctx);
+
+    const calls = readCalls(callsFile);
+    const cookiePath = calls[0][calls[0].indexOf("--cookies") + 1];
+    expect(cookiePath).toContain("n8n-ytdlp-cookies-");
+    expect(fs.existsSync(cookiePath)).toBe(false);
+  });
+
+  it("rejects cookie text without required cookies", async () => {
+    const node = new YtDlp();
+    const ctx = createMockExecuteFunctions({
+      operation: "getInfo",
+      url: "https://x.com/example/status/1234567890",
+      ytdlpPath: fakeYtDlp,
+      authentication: "cookieText",
+      cookieText:
+        ".x.com\tTRUE\t/\tTRUE\t1893456000\tauth_token\tsecret-auth\n",
+      requiredCookieDomains: "x.com\ntwitter.com",
+      requiredCookieNames: "auth_token\nct0",
+      outputMode: "filePath",
+      outputDirectory: tmpDir,
+      outputTemplate: "%(id)s.%(ext)s",
+      format: "best",
+      downloadArchive: "",
+      extraArguments: "",
+      timeoutSeconds: 30,
+    });
+
+    await expect(node.execute.call(ctx)).rejects.toThrow(
+      "Cookie Text is missing required cookie names: ct0",
+    );
+  });
+
   it("returns item errors when continueOnFail is enabled", async () => {
     fs.writeFileSync(
       fakeYtDlp,

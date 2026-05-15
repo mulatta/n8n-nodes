@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import { NodeConnectionTypes, NodeOperationError } from "n8n-workflow";
@@ -22,6 +23,11 @@ const DEFAULT_OUTPUT_TEMPLATE =
 interface YtDlpResult {
   stdout: string;
   stderr: string;
+}
+
+interface AuthenticationArgs {
+  args: string[];
+  cleanupFiles: string[];
 }
 
 interface InfoJson extends IDataObject {
@@ -89,8 +95,39 @@ export class YtDlp implements INodeType {
         options: [
           { name: "None", value: "none" },
           { name: "Cookie File", value: "cookieFile" },
+          { name: "Cookie Text", value: "cookieText" },
         ],
         default: "none",
+      },
+      {
+        displayName: "Cookie Text",
+        name: "cookieText",
+        type: "string",
+        default: "",
+        typeOptions: { rows: 8, password: true },
+        displayOptions: { show: { authentication: ["cookieText"] } },
+        description:
+          "Netscape-format cookies. Written to a temporary file and removed after yt-dlp exits.",
+      },
+      {
+        displayName: "Required Cookie Domains",
+        name: "requiredCookieDomains",
+        type: "string",
+        default: "x.com\ntwitter.com",
+        typeOptions: { rows: 2 },
+        displayOptions: { show: { authentication: ["cookieText"] } },
+        description:
+          "One domain per line. Cookie Text must contain cookies for at least one matching domain.",
+      },
+      {
+        displayName: "Required Cookie Names",
+        name: "requiredCookieNames",
+        type: "string",
+        default: "auth_token\nct0",
+        typeOptions: { rows: 2 },
+        displayOptions: { show: { authentication: ["cookieText"] } },
+        description:
+          "One cookie name per line. Cookie Text must contain all names before yt-dlp runs.",
       },
       {
         displayName: "Output Mode",
@@ -200,44 +237,48 @@ export class YtDlp implements INodeType {
         );
         const timeoutMs =
           Number(this.getNodeParameter("timeoutSeconds", i, 600)) * 1000;
-        const authArgs = await buildAuthenticationArgs(this, i);
-        const extraArgs = parseExtraArguments(
-          this.getNodeParameter("extraArguments", i, "") as string,
-        );
+        const auth = await buildAuthenticationArgs(this, i);
+        try {
+          const extraArgs = parseExtraArguments(
+            this.getNodeParameter("extraArguments", i, "") as string,
+          );
 
-        if (operation === "getInfo") {
-          const info = await getInfo(
+          if (operation === "getInfo") {
+            const info = await getInfo(
+              ytdlpPath,
+              sourceUrl,
+              [...auth.args, ...extraArgs],
+              timeoutMs,
+            );
+            returnData.push(...jsonItems(this, infoToJson(info, sourceUrl), i));
+            continue;
+          }
+
+          if (operation !== "download") {
+            throw new NodeOperationError(
+              this.getNode(),
+              `Unsupported operation: ${operation}`,
+              { itemIndex: i },
+            );
+          }
+
+          const result = await downloadItem(
+            this,
+            i,
             ytdlpPath,
             sourceUrl,
-            [...authArgs, ...extraArgs],
+            auth.args,
+            extraArgs,
             timeoutMs,
           );
-          returnData.push(...jsonItems(this, infoToJson(info, sourceUrl), i));
-          continue;
-        }
-
-        if (operation !== "download") {
-          throw new NodeOperationError(
-            this.getNode(),
-            `Unsupported operation: ${operation}`,
-            { itemIndex: i },
+          returnData.push(
+            ...this.helpers.constructExecutionMetaData([result], {
+              itemData: { item: i },
+            }),
           );
+        } finally {
+          await cleanupFiles(auth.cleanupFiles);
         }
-
-        const result = await downloadItem(
-          this,
-          i,
-          ytdlpPath,
-          sourceUrl,
-          authArgs,
-          extraArgs,
-          timeoutMs,
-        );
-        returnData.push(
-          ...this.helpers.constructExecutionMetaData([result], {
-            itemData: { item: i },
-          }),
-        );
       } catch (error) {
         if (this.continueOnFail()) {
           const errorMessage =
@@ -362,34 +403,75 @@ async function downloadItem(
 async function buildAuthenticationArgs(
   ctx: IExecuteFunctions,
   itemIndex: number,
-): Promise<string[]> {
+): Promise<AuthenticationArgs> {
   const authentication = ctx.getNodeParameter(
     "authentication",
     itemIndex,
     "none",
   ) as string;
-  if (authentication !== "cookieFile") {
-    return [];
+  if (authentication === "none") {
+    return { args: [], cleanupFiles: [] };
   }
 
-  const credentials = await ctx.getCredentials("ytDlpCookieFile");
-  const cookieFilePath = valueToString(credentials.cookieFilePath).trim();
-  if (!cookieFilePath) {
-    throw new NodeOperationError(
-      ctx.getNode(),
-      "Cookie File authentication requires a cookie file path credential",
-      { itemIndex },
-    );
-  }
-  if (!fs.existsSync(cookieFilePath)) {
-    throw new NodeOperationError(
-      ctx.getNode(),
-      `Cookie file not found: ${cookieFilePath}`,
-      { itemIndex },
-    );
+  if (authentication === "cookieFile") {
+    const credentials = await ctx.getCredentials("ytDlpCookieFile");
+    const cookieFilePath = valueToString(credentials.cookieFilePath).trim();
+    if (!cookieFilePath) {
+      throw new NodeOperationError(
+        ctx.getNode(),
+        "Cookie File authentication requires a cookie file path credential",
+        { itemIndex },
+      );
+    }
+    if (!fs.existsSync(cookieFilePath)) {
+      throw new NodeOperationError(
+        ctx.getNode(),
+        `Cookie file not found: ${cookieFilePath}`,
+        { itemIndex },
+      );
+    }
+
+    return { args: ["--cookies", cookieFilePath], cleanupFiles: [] };
   }
 
-  return ["--cookies", cookieFilePath];
+  if (authentication === "cookieText") {
+    const cookieText = valueToString(
+      ctx.getNodeParameter("cookieText", itemIndex, ""),
+    );
+    const requiredDomains = parseLines(
+      ctx.getNodeParameter("requiredCookieDomains", itemIndex, "") as string,
+    );
+    const requiredNames = parseLines(
+      ctx.getNodeParameter("requiredCookieNames", itemIndex, "") as string,
+    );
+    try {
+      validateNetscapeCookies(cookieText, requiredDomains, requiredNames);
+    } catch (error) {
+      throw new NodeOperationError(
+        ctx.getNode(),
+        error instanceof Error ? error.message : String(error),
+        { itemIndex },
+      );
+    }
+
+    const cookieFilePath = path.join(
+      os.tmpdir(),
+      `n8n-ytdlp-cookies-${process.pid}-${Date.now()}-${itemIndex}.txt`,
+    );
+    await fsp.writeFile(cookieFilePath, normalizeCookieText(cookieText), {
+      mode: 0o600,
+    });
+    return {
+      args: ["--cookies", cookieFilePath],
+      cleanupFiles: [cookieFilePath],
+    };
+  }
+
+  throw new NodeOperationError(
+    ctx.getNode(),
+    `Unsupported authentication mode: ${authentication}`,
+    { itemIndex },
+  );
 }
 
 async function getInfo(
@@ -472,6 +554,99 @@ function jsonItems(
     {
       itemData: { item: itemIndex },
     },
+  );
+}
+
+function parseLines(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function normalizeCookieText(value: string): string {
+  const trimmed = value.trim();
+  return `${trimmed}\n`;
+}
+
+interface ParsedCookie {
+  domain: string;
+  name: string;
+  value: string;
+}
+
+function validateNetscapeCookies(
+  cookieText: string,
+  requiredDomains: string[],
+  requiredNames: string[],
+): void {
+  const cookies = parseNetscapeCookies(cookieText);
+  if (cookies.length === 0) {
+    throw new Error("Cookie Text must contain Netscape-format cookie rows");
+  }
+
+  const matchingCookies = cookies.filter((cookie) =>
+    requiredDomains.some((domain) =>
+      cookieDomainMatches(cookie.domain, domain),
+    ),
+  );
+  if (requiredDomains.length > 0 && matchingCookies.length === 0) {
+    throw new Error(
+      `Cookie Text must contain cookies for one of: ${requiredDomains.join(", ")}`,
+    );
+  }
+
+  const cookieNames = new Set(matchingCookies.map((cookie) => cookie.name));
+  const missingNames = requiredNames.filter((name) => !cookieNames.has(name));
+  if (missingNames.length > 0) {
+    throw new Error(
+      `Cookie Text is missing required cookie names: ${missingNames.join(", ")}`,
+    );
+  }
+}
+
+function parseNetscapeCookies(cookieText: string): ParsedCookie[] {
+  return cookieText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .map((line) => {
+      const fields = line.split("\t");
+      if (fields.length < 7) {
+        throw new Error("Cookie Text contains a non-Netscape cookie row");
+      }
+      const [domain, , , , , name, value] = fields;
+      if (!domain || !name || !value) {
+        throw new Error("Cookie Text contains an incomplete cookie row");
+      }
+      return { domain, name, value };
+    });
+}
+
+function cookieDomainMatches(
+  cookieDomain: string,
+  requiredDomain: string,
+): boolean {
+  const normalizedCookieDomain = cookieDomain.replace(/^\./, "").toLowerCase();
+  const normalizedRequiredDomain = requiredDomain
+    .replace(/^\./, "")
+    .toLowerCase();
+  return (
+    normalizedCookieDomain === normalizedRequiredDomain ||
+    normalizedCookieDomain.endsWith(`.${normalizedRequiredDomain}`)
+  );
+}
+
+async function cleanupFiles(files: string[]): Promise<void> {
+  await Promise.all(
+    files.map(async (file) => {
+      try {
+        await fsp.unlink(file);
+      } catch {
+        // Best-effort cleanup. A stale temp file is less harmful than failing
+        // an otherwise completed download after yt-dlp exits.
+      }
+    }),
   );
 }
 
