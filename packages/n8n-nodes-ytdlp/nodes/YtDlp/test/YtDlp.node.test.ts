@@ -16,7 +16,7 @@ describe("YtDlp node", () => {
     fakeYtDlp = path.join(tmpDir, "yt-dlp-fake.js");
     fs.writeFileSync(
       fakeYtDlp,
-      `#!/usr/bin/env node
+      `#!${process.execPath}
 const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
@@ -158,7 +158,7 @@ console.log(output);
   it("returns item errors when continueOnFail is enabled", async () => {
     fs.writeFileSync(
       fakeYtDlp,
-      "#!/usr/bin/env node\nconsole.error('boom'); process.exit(1);\n",
+      `#!${process.execPath}\nconsole.error('boom'); process.exit(1);\n`,
       { mode: 0o755 },
     );
     const node = new YtDlp();
