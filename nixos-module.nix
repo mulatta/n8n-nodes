@@ -76,5 +76,15 @@ in
         )}
       '';
     })
+
+    (lib.mkIf cfg.nodes."n8n-nodes-ytdlp".enable {
+      systemd.services.n8n = {
+        environment.YT_DLP_PATH = lib.getExe (pkgs.yt-dlp.override { ffmpeg-headless = pkgs.ffmpeg; });
+        path = [
+          pkgs.ffmpeg
+          (pkgs.yt-dlp.override { ffmpeg-headless = pkgs.ffmpeg; })
+        ];
+      };
+    })
   ];
 }
