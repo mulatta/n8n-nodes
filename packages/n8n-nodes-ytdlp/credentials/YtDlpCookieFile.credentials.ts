@@ -3,7 +3,7 @@ import type { ICredentialType, INodeProperties } from "n8n-workflow";
 export class YtDlpCookieFile implements ICredentialType {
   name = "ytDlpCookieFile";
 
-  displayName = "yt-dlp Cookie File";
+  displayName = "yt-dlp Persistent Cookie Jar";
 
   documentationUrl =
     "https://github.com/yt-dlp/yt-dlp#authentication-with-cookies";
@@ -19,7 +19,7 @@ export class YtDlpCookieFile implements ICredentialType {
         "/var/lib/n8n/.local/state/n8n-nodes-ytdlp/cookies/x.netscape.txt",
       required: true,
       description:
-        "Path to a Netscape-format cookie file readable by the n8n service user",
+        "Path to a Netscape-format cookie jar readable and writable by the n8n service or task runner user. yt-dlp persists Set-Cookie updates back to this file.",
     },
   ];
 }
