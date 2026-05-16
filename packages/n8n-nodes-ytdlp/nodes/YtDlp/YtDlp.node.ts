@@ -28,6 +28,7 @@ interface YtDlpResult {
 interface AuthenticationArgs {
   args: string[];
   cleanupFiles: string[];
+  lockDirs: string[];
 }
 
 interface InfoJson extends IDataObject {
@@ -278,6 +279,7 @@ export class YtDlp implements INodeType {
           );
         } finally {
           await cleanupFiles(auth.cleanupFiles);
+          await releaseLockDirs(auth.lockDirs);
         }
       } catch (error) {
         if (this.continueOnFail()) {
@@ -410,7 +412,7 @@ async function buildAuthenticationArgs(
     "none",
   ) as string;
   if (authentication === "none") {
-    return { args: [], cleanupFiles: [] };
+    return { args: [], cleanupFiles: [], lockDirs: [] };
   }
 
   if (authentication === "cookieFile") {
@@ -423,15 +425,14 @@ async function buildAuthenticationArgs(
         { itemIndex },
       );
     }
-    if (!fs.existsSync(cookieFilePath)) {
-      throw new NodeOperationError(
-        ctx.getNode(),
-        `Cookie file not found: ${cookieFilePath}`,
-        { itemIndex },
-      );
-    }
+    await preparePersistentCookieJar(ctx, itemIndex, cookieFilePath);
+    const lockDir = await acquireCookieJarLock(ctx, itemIndex, cookieFilePath);
 
-    return { args: ["--cookies", cookieFilePath], cleanupFiles: [] };
+    return {
+      args: ["--cookies", cookieFilePath],
+      cleanupFiles: [],
+      lockDirs: [lockDir],
+    };
   }
 
   if (authentication === "cookieText") {
@@ -464,6 +465,7 @@ async function buildAuthenticationArgs(
     return {
       args: ["--cookies", cookieFilePath],
       cleanupFiles: [cookieFilePath],
+      lockDirs: [],
     };
   }
 
@@ -637,6 +639,74 @@ function cookieDomainMatches(
   );
 }
 
+async function preparePersistentCookieJar(
+  ctx: IExecuteFunctions,
+  itemIndex: number,
+  cookieFilePath: string,
+): Promise<void> {
+  try {
+    await fsp.mkdir(path.dirname(cookieFilePath), {
+      recursive: true,
+      mode: 0o770,
+    });
+    if (!fs.existsSync(cookieFilePath)) {
+      await fsp.writeFile(
+        cookieFilePath,
+        "# Netscape HTTP Cookie File\n# This file is managed by n8n-nodes-ytdlp.\n\n",
+        { mode: 0o660 },
+      );
+    }
+    await fsp.chmod(cookieFilePath, 0o660);
+    await fsp.access(cookieFilePath, fs.constants.R_OK | fs.constants.W_OK);
+  } catch (error) {
+    throw new NodeOperationError(
+      ctx.getNode(),
+      `Cookie file must be readable and writable: ${cookieFilePath}: ${error instanceof Error ? error.message : String(error)}`,
+      { itemIndex },
+    );
+  }
+}
+
+async function acquireCookieJarLock(
+  ctx: IExecuteFunctions,
+  itemIndex: number,
+  cookieFilePath: string,
+): Promise<string> {
+  const lockDir = `${cookieFilePath}.lock`;
+  const deadline = Date.now() + 30_000;
+
+  for (;;) {
+    try {
+      await fsp.mkdir(lockDir, { mode: 0o770 });
+      return lockDir;
+    } catch (error) {
+      const code =
+        typeof error === "object" && error
+          ? (error as { code?: string }).code
+          : undefined;
+      if (code !== "EEXIST") {
+        throw new NodeOperationError(
+          ctx.getNode(),
+          `Failed to lock cookie file: ${cookieFilePath}: ${error instanceof Error ? error.message : String(error)}`,
+          { itemIndex },
+        );
+      }
+      if (Date.now() >= deadline) {
+        throw new NodeOperationError(
+          ctx.getNode(),
+          `Timed out waiting for cookie file lock: ${lockDir}`,
+          { itemIndex },
+        );
+      }
+      await sleep(250);
+    }
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function cleanupFiles(files: string[]): Promise<void> {
   await Promise.all(
     files.map(async (file) => {
@@ -645,6 +715,19 @@ async function cleanupFiles(files: string[]): Promise<void> {
       } catch {
         // Best-effort cleanup. A stale temp file is less harmful than failing
         // an otherwise completed download after yt-dlp exits.
+      }
+    }),
+  );
+}
+
+async function releaseLockDirs(lockDirs: string[]): Promise<void> {
+  await Promise.all(
+    lockDirs.map(async (lockDir) => {
+      try {
+        await fsp.rmdir(lockDir);
+      } catch {
+        // Best-effort cleanup. A stale lock times out future runs instead of
+        // corrupting a persistent cookie jar through concurrent writes.
       }
     }),
   );

@@ -21,6 +21,13 @@ const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.CALLS_FILE, JSON.stringify(args) + '\\n');
+if (process.env.EXPECT_COOKIE_LOCK === '1' && args.includes('--cookies')) {
+  const cookiePath = args[args.indexOf('--cookies') + 1];
+  if (!fs.existsSync(cookiePath + '.lock')) {
+    console.error('missing cookie lock');
+    process.exit(1);
+  }
+}
 const url = args[args.length - 1];
 if (args.includes('--dump-single-json')) {
   console.log(JSON.stringify({
@@ -147,9 +154,46 @@ console.log(output);
       { ytDlpCookieFile: { cookieFilePath: cookieFile } },
     );
     process.env.CALLS_FILE = callsFile;
+    process.env.EXPECT_COOKIE_LOCK = "1";
+    try {
+      await node.execute.call(ctx);
+    } finally {
+      delete process.env.EXPECT_COOKIE_LOCK;
+    }
+
+    expect(readCalls(callsFile)[0]).toEqual(
+      expect.arrayContaining(["--cookies", cookieFile]),
+    );
+    expect(fs.existsSync(`${cookieFile}.lock`)).toBe(false);
+  });
+
+  it("creates missing persistent cookie jars", async () => {
+    const cookieFile = path.join(tmpDir, "state", "cookies", "x.netscape.txt");
+    const node = new YtDlp();
+    const ctx = createMockExecuteFunctions(
+      {
+        operation: "getInfo",
+        url: "https://x.com/example/status/1234567890",
+        ytdlpPath: fakeYtDlp,
+        authentication: "cookieFile",
+        outputMode: "filePath",
+        outputDirectory: tmpDir,
+        outputTemplate: "%(id)s.%(ext)s",
+        format: "best",
+        downloadArchive: "",
+        extraArguments: "",
+        timeoutSeconds: 30,
+      },
+      { ytDlpCookieFile: { cookieFilePath: cookieFile } },
+    );
+    process.env.CALLS_FILE = callsFile;
 
     await node.execute.call(ctx);
 
+    expect(fs.readFileSync(cookieFile, "utf8")).toContain(
+      "Netscape HTTP Cookie File",
+    );
+    expect((fs.statSync(cookieFile).mode & 0o777).toString(8)).toBe("660");
     expect(readCalls(callsFile)[0]).toEqual(
       expect.arrayContaining(["--cookies", cookieFile]),
     );
