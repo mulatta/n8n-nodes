@@ -1,0 +1,36 @@
+{
+  "name": "n8n-nodes-restate",
+  "version": "1.0.0",
+  "description": "n8n node to invoke Restate services over HTTP ingress",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "restate",
+    "durable-execution"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "Jörg Thalheim",
+    "email": "joerg@thalheim.io"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && find nodes -name '*.svg' -o -name '*.node.json' | while read f; do cp \"$f\" \"dist/$f\"; done",
+    "dev": "tsc --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/RestateApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Restate/Restate.node.js"
+    ]
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

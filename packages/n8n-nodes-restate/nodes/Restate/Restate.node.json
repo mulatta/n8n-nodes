@@ -1,0 +1,13 @@
+{
+  "node": "n8n-nodes-restate.Restate",
+  "nodeVersion": "1.0",
+  "codexVersion": "1.0",
+  "categories": ["Development", "Core Nodes"],
+  "resources": {
+    "primaryDocumentation": [
+      {
+        "url": "https://docs.restate.dev/invoke/http"
+      }
+    ]
+  }
+}
