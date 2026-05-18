@@ -149,6 +149,10 @@
               pname = "n8n-nodes-opencrow";
               description = "n8n node to send trigger messages to OpenCrow";
             };
+            n8n-nodes-restate = mkN8nNode {
+              pname = "n8n-nodes-restate";
+              description = "n8n node to invoke Restate services over HTTP ingress";
+            };
             n8n-nodes-ytdlp = mkN8nNode {
               pname = "n8n-nodes-ytdlp";
               description = "n8n node to download media with yt-dlp";
