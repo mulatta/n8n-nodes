@@ -114,7 +114,13 @@
         {
           _module.args.pkgs = import inputs.nixpkgs {
             inherit system;
-            config.allowUnfree = true;
+            config = {
+              allowUnfree = true;
+              permittedInsecurePackages = [
+                # n8n nodes still build with pnpm 9 while nixpkgs carries CVE-marked metadata.
+                "pnpm-9.15.9"
+              ];
+            };
           };
 
           packages = {
